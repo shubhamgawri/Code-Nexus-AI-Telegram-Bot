@@ -1,5 +1,5 @@
 # Code Nexus - AI Telegram Bot: **Integrated with Chat GPT**
-You can access my bot (if up) at: https://t.me/CodeNexus_bot or create your own.
+You can access my bot (if online) at: https://t.me/CodeNexus_bot or create your own.
 ## Features
 - Added: Access to study resources, lab manuals, and other helpful resources related to coding.
 - Added: You can request to add your resources in the bot.
