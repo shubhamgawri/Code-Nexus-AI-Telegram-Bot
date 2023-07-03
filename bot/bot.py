@@ -16,6 +16,8 @@ from telegram import (
     User,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
     BotCommand
 )
 from telegram.ext import (
@@ -24,6 +26,8 @@ from telegram.ext import (
     CallbackContext,
     CommandHandler,
     MessageHandler,
+    ContextTypes,
+    ConversationHandler,
     CallbackQueryHandler,
     AIORateLimiter,
     filters
@@ -43,16 +47,17 @@ user_semaphores = {}
 user_tasks = {}
 
 HELP_MESSAGE = """Commands:
-⚪ /retry – Regenerate last bot answer
-⚪ /new – Start new dialog
-⚪ /mode – Select chat mode
-⚪ /settings – Show settings
-⚪ /balance – Show balance
-⚪ /help – Show help
+🔴 /new – Start New Dialog.
+🔴 /materials – Get access to study materials.
+🔴 /mode – Select Chat Mode.
+🔴 /settings – Show Settings.
+🔴 /retry – Regenerate Last Bot Answer.
+🔴 /balance – Show Balance.
+🔴 /help – Show Help.
 
-🎨 Generate images from text prompts in <b>👩‍🎨 Artist</b> /mode
+☕ Get help with <b>Codes</b>, Generate images using 7 different chat modes --> Use /mode
+🎤 You can also send <b>Voice Messages</b> instead of text
 👥 Add bot to <b>group chat</b>: /help_group_chat
-🎤 You can send <b>Voice Messages</b> instead of text
 """
 
 HELP_GROUP_CHAT_MESSAGE = """You can add bot to any <b>group chat</b> to help and entertain its participants!
@@ -66,6 +71,131 @@ To get a reply from the bot in the chat – @ <b>tag</b> it or <b>reply</b> to i
 For example: "{bot_username} write a poem about Telegram"
 """
 
+SUBJECT, MATERIAL, RESOURCE = range(3)
+
+subjects = {
+    'Data Structure 🧠': {
+        'Practical Labs 💻': {
+            '1️⃣ Implementing Stack' : 'resources/DS/1_1_ImplementingStack.c',
+            '2️⃣ TwoStacks in One' : 'resources/DS/1_2_TwoStacksinOne.c',
+            '3️⃣ Evaluation Of Postfix' : 'resources/DS/2_EvaluationOfPostfix.c',
+            '4️⃣ Infix To Postfix' : 'resources/DS/2_Infix_To_Postfix.c',
+            '5️⃣ Queue Using Array' : 'resources/DS/2_3_Queue_Using_Array.c',
+            '6️⃣ CircularQueue Using Array' : 'resources/DS/4_CircularQueue_Using_Array.c',
+            '7️⃣ Linked List' : 'resources/DS/5_Linked_List.c',
+            '8️⃣ Two Linked List' : 'resources/DS/6_TwoLinkedList.c',
+            '9️⃣ Circular Linked List' : 'resources/DS/7_CircularLinkedList.c',
+            '🔟 DFS' : 'resources/DS/10_BFS.c'
+        },
+
+         'Notes 📚': {
+           'Data Structures in C' : 'resources/DS/DS Complete.pdf',
+           'Data Structures in C++' : 'resources/DS/DS in C++.pdf'
+        },
+
+         'Resources 📎': {
+           'Binary Search Animation' : 'resources/DS/Binary-search.gif',
+           'Linear Search Animation' : 'resources/DS/Linear-search.gif',
+           'Queue Insert Animation' : 'resources/DS/Q_Insert.gif',
+           'Queue Remove Animation' : 'resources/DS/Q_Remove.gif',
+           'Stack Pop Animation' : 'resources/DS/S_POP.gif',
+           'Stack Push Animation' : 'resources/DS/S_PUSH.gif'
+        }
+    },
+
+    'Algorithms ⚙': {
+        'Practical Labs 💻': {
+            '1️⃣ Insertion Sort' : 'resources/AOA/1_InsertionSort.c',
+            '2️⃣ Optimised Bubble Sort' : 'resources/AOA/1_OptimisedBubbleSort.c',
+            '3️⃣ Selection Sort' : 'resources/AOA/1_SelectionSort.c',
+            '4️⃣ Binary Search' : 'resources/AOA/2_BinarySearch.c',
+            '5️⃣ Quick Sort' : 'resources/AOA/3_QuickSort.c',
+            '6️⃣ Merge Sort' : 'resources/AOA/4_MergeSort.c',
+            '7️⃣ Fractional Knapsack' : 'resources/AOA/5_FractionalKnapsack.c',
+            '8️⃣ JobSequencing With Deadline' : 'resources/AOA/6_JobSequencingWithDeadline.c',
+            '9️⃣ Zero One Knapsack' : 'resources/AOA/7_ZeroOneKnapsack.c',
+            '🔟 Floyd Warshall' : 'resources/AOA/8_FloydWarshall.c'
+        },
+        'Notes 📚': {
+            'Algo Notes' : 'resources/AOA/AlgorithmsNotesForProfessionals.pdf'
+        },
+        'Resources 📎': {
+             'Animations' : 'URL to https://workshape.github.io/visual-graph-algorithms/',
+             'Tutorials' : 'URL to https://www.programiz.com/dsa',
+             'Leetcode Questions' : 'URL to https://drive.google.com/file/d/1MSpPOSWUuqVt9nOHJAJJOj3ULhzJOZAr/view'
+        }
+    },
+    'Python 🐍': {
+        'Practical Labs 💻': {
+            '1️⃣ Dictionary Highest' : 'resources/PYTHON/1_DictionaryHighest.py',
+            '2️⃣ Longest Word' : 'resources/PYTHON/1_LongestWord.py',
+            '3️⃣ Merge Dictionary' : 'resources/PYTHON/1_MergeDictionary.py',
+            '4️⃣ Prime Factors' : 'resources/PYTHON/1_PrimeFactors.py',
+            '5️⃣ Print Dict' : 'resources/PYTHON/1_PrintDict.py',
+            '6️⃣ Word Count' : 'resources/PYTHON/1_WordCount.py',
+            '7️⃣ Array Sum' : 'resources/PYTHON/2_ArraySum.py',
+            '8️⃣ Calculator' : 'resources/PYTHON/2_Calculator.py',
+            '9️⃣ Threading' : 'resources/PYTHON/2_Threading.py',
+            '🔟 Sum Of Subsets' : 'resources/PYTHON/2_SumOfSubsets.py'
+        },
+
+        'Notes 📚': {
+            'Notes 📚' : 'resources/PYTHON/PythonNotesForProfessionals.pdf'
+        }
+    },
+
+    'C/C++ 🍁':  {
+        'Practical Labs 💻': {
+            '1️⃣ Alphabet Pattern Assignment' : 'resources/CPP/AlphabetPatternAssignment.c',
+            '2️⃣ Armstrong Number' : 'resources/CPP/Armstrong_number.c',
+            '3️⃣ Array Reverse' : 'resources/CPP/Array_reverse.c',
+            '4️⃣ Bubble Sort' : 'resources/CPP/Bubble_Sort.c',
+            '5️⃣ Matrix Addition' : 'resources/CPP/MatrixAddn.c',
+            '6️⃣ Matrix Multiplication' : 'resources/CPP/MatrixMul.c',
+            '7️⃣ Matrix Transpose' : 'resources/CPP/MatrixTranspose.c',
+            '8️⃣ Number Pattern' : 'resources/CPP/NumberPattern.c',
+            '9️⃣ Reverse Array using Pointer' : 'resources/CPP/RevArrayusingpntr.c',
+            '🔟 Star Pattern' : 'resources/CPP/StarPattern.c'
+        },
+        'Notes 📚': {
+           'Data Structures in C 📕' : 'resources/CPP/DS Complete.pdf',
+           'Data Structures in C++ 📕' : 'resources/CPP/DS in C++.pdf',
+           'C Notes' : 'resources/CPP/CNotesForProfessionals.pdf'
+        },
+        'Resources 📎': {
+           'YT Playlist 📺' : 'URL to https://www.youtube.com/playlist?list=PLDN4rrl48XKpZkf03iYFl-O29szjTrs_O',
+           'Linear Search Animation 📺' : 'resources/DS/Linear-search.gif'
+        }
+    },
+    'JAVA ☕':  {
+        'Notes 📚': {
+            'Full Notes' : 'resources/JAVA/JavaNotesForProfessionals.pdf'
+        },
+
+        'Resources 📎': {
+          'Compiler Interpreter Diagram' : 'resources/JAVA/c.gif',
+           'Access Modifiers in Java' : 'resources/JAVA/Access-Modifiers-in-Java.png'  
+        }
+    },
+
+    'DBMS 💥': {
+        'Resources 📎': {
+            'Notes 1' : 'resources/DBMS/PostgreSQLNotesForProfessionals.pdf',
+           'Notes 2' : 'resources/DBMS/SQLNotesForProfessionals.pdf'  
+        }
+    },
+    'Operating System 🖥': {
+        'Resources 📎': {
+            'Notes 📚' : 'URL to https://drive.google.com/file/d/1FAxjhyIlsGGouIyCPyR3xqKVgU7mhEmQ/view',
+            'CheatSheet 📃' : 'URL to https://whimsical.com/operating-system-cheatsheet-by-love-babbar-S9tuWBCSQfzoBRF5EDNinQ'
+        }
+    },
+    'Computer Networks 🔗': {
+        'Resources 📎': {
+            'CheatSheet 📃' : 'URL to https://whimsical.com/networking-cheatsheet-by-love-babbar-FcLExFDezehhfsbDPfZDBv'
+        }
+    }
+}
 
 def split_text_into_chunks(text, chunk_size):
     for i in range(0, len(text), chunk_size):
@@ -94,7 +224,7 @@ async def register_user_if_not_exists(update: Update, context: CallbackContext, 
 
     # back compatibility for n_used_tokens field
     n_used_tokens = db.get_user_attribute(user.id, "n_used_tokens")
-    if isinstance(n_used_tokens, int) or isinstance(n_used_tokens, float):  # old format
+    if isinstance(n_used_tokens, int):  # old format
         new_n_used_tokens = {
             "gpt-3.5-turbo": {
                 "n_input_tokens": 0,
@@ -138,7 +268,7 @@ async def start_handle(update: Update, context: CallbackContext):
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
     db.start_new_dialog(user_id)
 
-    reply_text = "Hi! I'm <b>ChatGPT</b> bot implemented with OpenAI API 🤖\n\n"
+    reply_text = "Hi! I'm <b>Code Nexus</b> bot integrated with OpenAI API 🤖\n\n"
     reply_text += HELP_MESSAGE
 
     await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
@@ -412,6 +542,75 @@ async def new_dialog_handle(update: Update, context: CallbackContext):
     chat_mode = db.get_user_attribute(user_id, "current_chat_mode")
     await update.message.reply_text(f"{config.chat_modes[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML)
 
+async def show_study_materials(update: Update, context: CallbackContext):
+    buttons = [KeyboardButton(subject) for subject in subjects]
+    buttons.append(KeyboardButton('I want to share my materials 📘'))
+    reply_markup = ReplyKeyboardMarkup(build_keyboard(buttons, 2), one_time_keyboard=True)
+    await update.message.reply_text('Select a subject: (Use /end to end)', reply_markup=reply_markup)
+    return SUBJECT
+
+# Handle subject selection
+async def select_subject(update: Update, context: CallbackContext):
+    text = update.message.text
+    context.user_data['subject'] = text
+    if text == 'I want to share my materials 📘':
+        await update.message.reply_text('You can send your own study resources to @Shubhamsg09. After review, we can add them to the bot. Thanks for sharing!')
+    elif text in subjects:
+        buttons = [KeyboardButton(material) for material in subjects[context.user_data['subject']]]
+        buttons.append(KeyboardButton('Back 🔙'))
+        reply_markup = ReplyKeyboardMarkup(build_keyboard(buttons, 1), one_time_keyboard=True)
+        await update.message.reply_text('Select a material: (Use /end to end)', reply_markup=reply_markup)
+        return MATERIAL
+    else:
+        await update.message.reply_text('Invalid subject selected.')
+    return ConversationHandler.END
+
+# Handle material selection
+async def select_material(update: Update, context: CallbackContext):
+    text = update.message.text
+    context.user_data['material'] = text
+    subject = context.user_data['subject']
+    if text == 'Back 🔙':
+        return await show_study_materials(update, context)
+    elif subject in subjects and text in subjects[subject]:
+        keyboard = [[KeyboardButton(resource)] for resource in subjects[context.user_data['subject']][text]]
+        keyboard.append([KeyboardButton('Home 🔝'), KeyboardButton('Back 🔙')])
+        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+        await update.message.reply_text('Select a resource: (Use /end to end)', reply_markup=reply_markup)
+        return RESOURCE
+    else:
+        await update.message.reply_text('Invalid material selected.')
+    return ConversationHandler.END
+
+# Handle resource selection
+async def select_resource(update: Update, context: CallbackContext):
+    text = update.message.text
+    subject = context.user_data['subject']
+    material = context.user_data['material']
+    if text == 'Back 🔙':
+        buttons = [KeyboardButton(material) for material in subjects[subject]]
+        buttons.append(KeyboardButton('Back 🔙'))
+        reply_markup = ReplyKeyboardMarkup(build_keyboard(buttons, 1), one_time_keyboard=True)
+        await update.message.reply_text('Select a material: (Use /end to end)', reply_markup=reply_markup)
+        return MATERIAL
+    elif text == 'Home 🔝':
+        return await show_study_materials(update, context)
+    elif subject in subjects and material in subjects[subject] and text in subjects[subject][material]:
+        location = subjects[subject][material][text]
+        if location.startswith('URL to'):
+            url = location.split('URL to')[1].strip()
+            await update.message.reply_text(f'Here is your <a href="{url}">Link</a> to the resource. Use /materials to request again!', parse_mode='HTML')
+        else:
+         await context.bot.send_document(chat_id=update.message.chat_id, document=open(location, 'rb'))
+         await update.message.reply_text('Thank you for using our resources. Use /materials to request again!')    
+    else:
+        await update.message.reply_text('Invalid resource selection.')
+    return ConversationHandler.END
+
+# Build a 2D keyboard layout with the specified number of columns
+def build_keyboard(buttons, n_cols):
+    keyboard = [buttons[i:i + n_cols] for i in range(0, len(buttons), n_cols)]
+    return keyboard
 
 async def cancel_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
@@ -619,9 +818,8 @@ async def show_balance_handle(update: Update, context: CallbackContext):
 
 
 async def edited_message_handle(update: Update, context: CallbackContext):
-    if update.edited_message.chat.type == "private":
-        text = "🥲 Unfortunately, message <b>editing</b> is not supported"
-        await update.edited_message.reply_text(text, parse_mode=ParseMode.HTML)
+    text = "🥲 Unfortunately, message <b>editing</b> is not supported"
+    await update.edited_message.reply_text(text, parse_mode=ParseMode.HTML)
 
 
 async def error_handle(update: Update, context: CallbackContext) -> None:
@@ -652,6 +850,7 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
 async def post_init(application: Application):
     await application.bot.set_my_commands([
         BotCommand("/new", "Start new dialog"),
+        BotCommand("/materials", "Get access to study materials."),
         BotCommand("/mode", "Select chat mode"),
         BotCommand("/retry", "Re-generate response for previous query"),
         BotCommand("/balance", "Show balance"),
@@ -665,8 +864,6 @@ def run_bot() -> None:
         .token(config.telegram_token)
         .concurrent_updates(True)
         .rate_limiter(AIORateLimiter(max_retries=5))
-        .http_version("1.1")
-        .get_updates_http_version("1.1")
         .post_init(post_init)
         .build()
     )
@@ -675,14 +872,22 @@ def run_bot() -> None:
     user_filter = filters.ALL
     if len(config.allowed_telegram_usernames) > 0:
         usernames = [x for x in config.allowed_telegram_usernames if isinstance(x, str)]
-        any_ids = [x for x in config.allowed_telegram_usernames if isinstance(x, int)]
-        user_ids = [x for x in any_ids if x > 0]
-        group_ids = [x for x in any_ids if x < 0]
-        user_filter = filters.User(username=usernames) | filters.User(user_id=user_ids) | filters.Chat(chat_id=group_ids)
+        user_ids = [x for x in config.allowed_telegram_usernames if isinstance(x, int)]
+        user_filter = filters.User(username=usernames) | filters.User(user_id=user_ids)
 
     application.add_handler(CommandHandler("start", start_handle, filters=user_filter))
     application.add_handler(CommandHandler("help", help_handle, filters=user_filter))
     application.add_handler(CommandHandler("help_group_chat", help_group_chat_handle, filters=user_filter))
+    application.add_handler(ConversationHandler(
+    entry_points=[CommandHandler('materials', show_study_materials)],
+    states={
+        SUBJECT: [MessageHandler(filters.TEXT & (~filters.COMMAND) & user_filter, select_subject)],
+        MATERIAL: [MessageHandler(filters.TEXT & (~filters.COMMAND) & user_filter, select_material)],
+        RESOURCE: [MessageHandler(filters.TEXT & (~filters.COMMAND) & user_filter, select_resource)]
+    },
+    fallbacks=[CommandHandler('end', select_material)],
+    allow_reentry=True
+))
 
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & user_filter, message_handle))
     application.add_handler(CommandHandler("retry", retry_handle, filters=user_filter))
